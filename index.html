@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book My Salon - Find & Book Salons Near You</title>
+    <!-- React & Babel -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f9fafb; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .slide-in { animation: slideInRight 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .ad-banner { background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%); }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- MOCK DATABASE (INDIAN LOCALIZED) ---
+        const initialSalons =[
+            { id: 1, name: "Luxe Hair & Spa", ownerName: "Rahul Sharma", location: "Connaught Place, New Delhi", lat: 28.6304, lng: 77.2177, description: "Premium haircuts, styling, and relaxing spa treatments in a modern atmosphere.", rating: 4.8, image: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=600&q=80", status: "Approved", commissionRate: 10 },
+            { id: 2, name: "Urban Grooming Co.", ownerName: "Vikram Singh", location: "Andheri West, Mumbai", lat: 19.1363, lng: 72.8277, description: "Classic barbershop meets modern styling for the ultimate grooming experience.", rating: 4.6, image: "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=600&q=80", status: "Approved", commissionRate: 15 },
+            { id: 3, name: "Radiance Beauty Bar", ownerName: "Priya Desai", location: "Koramangala, Bangalore", lat: 12.9352, lng: 77.6245, description: "Your one-stop destination for flawless nails, makeup, and skin care.", rating: 4.9, image: "https://images.unsplash.com/photo-1600948836101-f9ffda59d250?auto=format&fit=crop&w=600&q=80", status: "Approved", commissionRate: 10 },
+            { id: 4, name: "Glow & Go", ownerName: "Amit Patel", location: "Navrangpura, Ahmedabad", lat: 23.0366, lng: 72.5615, description: "Quick and beautiful makeovers.", rating: 4.5, image: "https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=600&q=80", status: "Pending", commissionRate: 10 }
+        ];
+
+        const initialServices =[
+            { id: 1, salonId: 1, name: "Women's Haircut & Blowdry", price: 1200, duration: 60 },
+            { id: 2, salonId: 1, name: "Balayage Color", price: 4500, duration: 120 },
+            { id: 3, salonId: 2, name: "Gentleman's Cut", price: 400, duration: 30 },
+            { id: 4, salonId: 2, name: "Beard Trim & Hot Towel", price: 250, duration: 20 },
+            { id: 5, salonId: 3, name: "Gel Manicure", price: 800, duration: 45 },
+            { id: 6, salonId: 3, name: "Bridal Makeup", price: 15000, duration: 180 }
+        ];
+
+        const initialStaff =[
+            { id: 1, salonId: 1, name: "Sneha Kapoor", role: "Master Stylist", experience: "8 Years" },
+            { id: 2, salonId: 1, name: "Riya Verma", role: "Esthetician", experience: "4 Years" },
+            { id: 3, salonId: 2, name: "Manish Kumar", role: "Senior Barber", experience: "10 Years" },
+            { id: 4, salonId: 3, name: "Neha Gupta", role: "Makeup Artist", experience: "6 Years" }
+        ];
+
+        const initialBookings =[
+            { id: 101, salonId: 1, serviceId: 1, staffId: 1, customerId: 1, date: "2026-03-10", time: "10:00 AM", status: "Completed", paymentMode: "UPI", amount: 1200, isRead: true }
+        ];
+
+        const initialOffers =[
+            { id: 1, salonId: 1, title: "Flat 20% Off on Hair Coloring", code: "COLOR20" }
+        ];
+
+        const initialAds =[
+            { id: 1, title: "L'Oréal Professional Hair Spa starting at ₹999! Sponsored by L'Oréal India.", charge: 5000, active: true }
+        ];
+
+        const TIME_SLOTS =["09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM"];
+
+        // Notification Sound Object
+        const notificationSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+
+        // --- MAIN APP COMPONENT ---
+        const App = () => {
+            // Global State
+            const [salons, setSalons] = useState(initialSalons);
+            const [services, setServices] = useState(initialServices);
+            const[staff, setStaff] = useState(initialStaff);
+            const [bookings, setBookings] = useState(initialBookings);
+            const [offers, setOffers] = useState(initialOffers);
+            const[ads, setAds] = useState(initialAds);
+            const [salonWallets, setSalonWallets] = useState({ 1: 1080 });
+            
+            // App Navigation State
+            const [view, setView] = useState('home');
+            const [selectedSalonId, setSelectedSalonId] = useState(null);
+            const [bookingData, setBookingData] = useState({ serviceId: null });
+
+            // Authentication/Role State (Simulating Login)
+            const [user, setUser] = useState({ role: 'customer', id: 1, name: 'Anjali Sharma' });
+
+            // Helpers
+            const getSalon = id => salons.find(s => s.id === id) || {};
+            const getService = id => services.find(s => s.id === id) || {};
+            const getStaffMember = id => staff.find(s => s.id === id) || {};
+
+            // Play notification sound if new pending booking for the logged-in salon owner
+            useEffect(() => {
+                if (user.role === 'salon_admin') {
+                    const unreadPending = bookings.filter(b => b.salonId === user.salonId && b.status === 'Pending' && !b.isRead);
+                    if (unreadPending.length > 0) {
+                        notificationSound.play().catch(e => console.log("Audio auto-play prevented by browser."));
+                    }
+                }
+            }, [bookings, user]);
+
+            // --- GLOBAL ACTIONS ---
+            const handleUpdateBooking = (id, newStatus) => {
+                setBookings(prev => prev.map(b => {
+                    if (b.id === id) {
+                        // Handle wallet logic if Completed
+                        if (newStatus === 'Completed') {
+                            const salonData = getSalon(b.salonId);
+                            const netAmount = b.amount - (b.amount * (salonData.commissionRate / 100));
+                            setSalonWallets(w => ({ ...w, [b.salonId]: (w[b.salonId] || 0) + netAmount }));
+                        }
+                        return { ...b, status: newStatus, isRead: true };
+                    }
+                    return b;
+                }));
+            };
+
+            const markAsRead = (id) => {
+                setBookings(prev => prev.map(b => b.id === id ? { ...b, isRead: true } : b));
+            };
+
+
+            // --- LIVE NOTIFICATION POPUP FOR SALON OWNER ---
+            const SalonNotificationPopup = () => {
+                if (user.role !== 'salon_admin') return null;
+                const unreadBookings = bookings.filter(b => b.salonId === user.salonId && b.status === 'Pending' && !b.isRead);
+
+                if (unreadBookings.length === 0) return null;
+
+                return (
+                    <div className="fixed bottom-6 right-6 z-50 space-y-4">
+                        {unreadBookings.map(b => (
+                            <div key={b.id} className="slide-in bg-white border-l-4 border-indigo-600 shadow-2xl rounded-xl p-5 w-80 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-16 h-16 bg-indigo-50 rounded-bl-full -z-10"></div>
+                                <div className="flex justify-between items-start mb-3">
+                                    <h4 className="font-bold text-gray-800 flex items-center gap-2">
+                                        <i className="fas fa-bell text-yellow-500 animate-pulse text-lg"></i> 
+                                        New Order Request!
+                                    </h4>
+                                    <button onClick={() => markAsRead(b.id)} className="text-gray-400 hover:text-gray-700">
+                                        <i className="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <div className="mb-4">
+                                    <p className="text-sm font-bold text-indigo-700">{getService(b.serviceId).name}</p>
+                                    <p className="text-xs text-gray-500 mb-1"><i className="far fa-calendar-alt"></i> {b.date} at {b.time}</p>
+                                    <p className="text-xs text-gray-500"><i className="fas fa-rupee-sign"></i> {b.amount} ({b.paymentMode})</p>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button onClick={() => handleUpdateBooking(b.id, 'Confirmed')} className="flex-1 bg-indigo-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 transition shadow-md">
+                                        <i className="fas fa-check mr-1"></i> Accept
+                                    </button>
+                                    <button onClick={() => handleUpdateBooking(b.id, 'Cancelled')} className="flex-1 bg-red-50 text-red-600 py-2 rounded-lg text-sm font-bold hover:bg-red-100 transition border border-red-100">
+                                        Reject
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                );
+            };
+
+            // --- VIEW COMPONENTS ---
+
+            const Navbar = () => (
+                <nav className="bg-white shadow-sm sticky top-0 z-50">
+                    <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+                        <div className="flex items-center gap-3 cursor-pointer" onClick={() => { 
+                            if(user.role === 'admin') setView('admin');
+                            else if(user.role === 'superadmin') setView('superadmin');
+                            else setView('home'); 
+                        }}>
+                            {/* PROFESSIONAL PNG LOGO UPDATE */}
+                            <img src="https://cdn-icons-png.flaticon.com/512/1000/1000997.png" alt="Book My Salon Logo" className="w-10 h-10 object-contain drop-shadow-md" />
+                            <span className="text-2xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">
+                                Book My Salon
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-6">
+                            {user.role === 'customer' && (
+                                <>
+                                    <button onClick={() => setView('home')} className={`font-medium ${view === 'home' ? 'text-indigo-600' : 'text-gray-600 hover:text-indigo-600'}`}>Home</button>
+                                    <button onClick={() => setView('my-bookings')} className={`font-medium ${view === 'my-bookings' ? 'text-indigo-600' : 'text-gray-600 hover:text-indigo-600'}`}>My Bookings</button>
+                                </>
+                            )}
+                            <div className="border-l pl-6 flex items-center gap-3">
+                                <i className="fas fa-user-circle text-gray-400 text-2xl"></i>
+                                <select 
+                                    className="bg-gray-50 border border-gray-200 text-sm font-medium rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2 outline-none cursor-pointer"
+                                    value={user.role}
+                                    onChange={(e) => {
+                                        if (e.target.value === 'salon_admin') {
+                                            setUser({ role: 'salon_admin', salonId: 1, name: 'Rahul Sharma (Luxe Hair)' });
+                                            setView('admin');
+                                        } else if (e.target.value === 'superadmin') {
+                                            setUser({ role: 'superadmin', id: 99, name: 'Super Admin' });
+                                            setView('superadmin');
+                                        } else {
+                                            setUser({ role: 'customer', id: 1, name: 'Anjali Sharma' });
+                                            setView('home');
+                                        }
+                                    }}
+                                >
+                                    <option value="customer">Customer View</option>
+                                    <option value="salon_admin">Salon Partner View</option>
+                                    <option value="superadmin">Super Admin View</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </nav>
+            );
+
+            const CustomerHome = () => {
+                const approvedSalons = salons.filter(s => s.status === 'Approved');
+                const activeAds = ads.filter(a => a.active);
+
+                return (
+                    <div className="max-w-7xl mx-auto px-4 py-8 fade-in">
+                        {/* Super Admin Monetization Banner */}
+                        {activeAds.length > 0 && (
+                            <div className="ad-banner text-white rounded-xl p-4 mb-8 shadow-md flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <i className="fas fa-bullhorn text-2xl text-yellow-300"></i>
+                                    <span className="font-semibold text-lg">{activeAds[0].title}</span>
+                                </div>
+                                <span className="text-xs bg-white/20 px-2 py-1 rounded">Sponsored Ad</span>
+                            </div>
+                        )}
+
+                        <div className="flex justify-between items-end mb-6 border-b pb-4">
+                            <div>
+                                <h1 className="text-3xl font-bold text-gray-900 mb-2">Salons Near You</h1>
+                                <p className="text-gray-600"><i className="fas fa-location-arrow mr-1 text-indigo-500"></i> Showing results in your local area</p>
+                            </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {approvedSalons.map(salon => (
+                                <div key={salon.id} className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-lg transition cursor-pointer relative" 
+                                     onClick={() => { setSelectedSalonId(salon.id); setView('salon'); }}>
+                                    <img src={salon.image} alt={salon.name} className="w-full h-56 object-cover" />
+                                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm text-gray-800 text-xs px-3 py-1.5 rounded-full font-bold shadow flex items-center gap-1">
+                                        <i className="fas fa-star text-yellow-500"></i> {salon.rating}
+                                    </div>
+                                    <div className="p-5">
+                                        <h3 className="text-xl font-bold text-gray-800 mb-1">{salon.name}</h3>
+                                        <p className="text-gray-500 text-sm mb-4 h-10 overflow-hidden line-clamp-2">{salon.description}</p>
+                                        <div className="flex items-center justify-between border-t pt-3">
+                                            <span className="text-gray-500 text-xs font-medium"><i className="fas fa-map-marker-alt text-red-500 mr-1"></i> {salon.location.split(',')[0]}</span>
+                                            <button className="text-indigo-600 font-semibold text-sm hover:underline">
+                                                View Menu & Book <i className="fas fa-arrow-right ml-1"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            };
+
+            const SalonDetails = () => {
+                const salon = getSalon(selectedSalonId);
+                const salonServices = services.filter(s => s.salonId === salon.id);
+                const salonStaff = staff.filter(s => s.salonId === salon.id);
+                const salonOffers = offers.filter(o => o.salonId === salon.id);
+
+                return (
+                    <div className="bg-gray-50 min-h-screen pb-12 fade-in">
+                        <div className="relative h-80">
+                            <img src={salon.image} className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent"></div>
+                            <button onClick={() => setView('home')} className="absolute top-6 left-6 bg-white/20 backdrop-blur text-white px-4 py-2 rounded-lg hover:bg-white/30 transition">
+                                <i className="fas fa-arrow-left mr-2"></i> Back
+                            </button>
+                            <div className="absolute bottom-6 left-6 md:left-12 text-white">
+                                <h1 className="text-4xl md:text-5xl font-bold mb-2">{salon.name}</h1>
+                                <p className="text-lg opacity-90"><i className="fas fa-map-marker-alt text-red-400 mr-2"></i>{salon.location}</p>
+                            </div>
+                        </div>
+
+                        <div className="max-w-7xl mx-auto px-4 md:px-12 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            <div className="lg:col-span-2 space-y-8">
+                                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                                    <h2 className="text-xl font-bold mb-4 border-b pb-2">About Salon</h2>
+                                    <p className="text-gray-600 mb-4">{salon.description}</p>
+                                    <div className="flex flex-wrap gap-4 text-sm text-gray-700">
+                                        <div className="bg-gray-50 px-4 py-2 rounded-lg"><i className="fas fa-user-tie text-indigo-500 mr-2"></i> <strong>Owner:</strong> {salon.ownerName}</div>
+                                        <div className="bg-gray-50 px-4 py-2 rounded-lg"><i className="fas fa-users text-indigo-500 mr-2"></i> <strong>Total Staff:</strong> {salonStaff.length} Professionals</div>
+                                    </div>
+                                    <div className="mt-4">
+                                        <a href={`https://maps.google.com/?q=${encodeURIComponent(salon.name + ' ' + salon.location)}`} target="_blank" className="inline-flex items-center text-indigo-600 font-medium hover:underline">
+                                            <i className="fas fa-directions mr-2"></i> Get Directions to Salon
+                                        </a>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                                    <h2 className="text-xl font-bold mb-4 border-b pb-2">Salon Menu (Services)</h2>
+                                    <div className="space-y-3">
+                                        {salonServices.length === 0 ? <p className="text-gray-500">No services listed.</p> : null}
+                                        {salonServices.map(service => (
+                                            <div key={service.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-xl hover:border-indigo-200 hover:bg-indigo-50/30 transition">
+                                                <div className="mb-3 sm:mb-0">
+                                                    <h3 className="text-lg font-bold text-gray-800">{service.name}</h3>
+                                                    <p className="text-gray-500 text-sm"><i className="far fa-clock"></i> {service.duration} mins</p>
+                                                </div>
+                                                <div className="flex items-center gap-4">
+                                                    <span className="text-xl font-bold text-gray-900">₹{service.price}</span>
+                                                    <button onClick={() => {
+                                                        setBookingData({ serviceId: service.id });
+                                                        setView('booking');
+                                                    }} className="bg-indigo-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-indigo-700 shadow shadow-indigo-200">
+                                                        Book Now
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-8">
+                                {salonOffers.length > 0 && (
+                                    <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-2xl p-6 shadow-sm border border-yellow-100">
+                                        <h2 className="text-xl font-bold mb-4 text-orange-800"><i className="fas fa-tags mr-2"></i> Special Offers</h2>
+                                        {salonOffers.map(offer => (
+                                            <div key={offer.id} className="bg-white p-3 rounded-lg shadow-sm border border-yellow-200 mb-3 last:mb-0 border-dashed">
+                                                <p className="font-bold text-gray-800 text-sm mb-1">{offer.title}</p>
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs text-gray-500">Use Code:</span>
+                                                    <span className="bg-yellow-100 text-yellow-800 font-mono text-xs px-2 py-1 rounded font-bold">{offer.code}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                                    <h2 className="text-xl font-bold mb-4 border-b pb-2">Our Experts</h2>
+                                    <div className="space-y-4">
+                                        {salonStaff.length === 0 ? <p className="text-gray-500">No staff listed yet.</p> : null}
+                                        {salonStaff.map(member => (
+                                            <div key={member.id} className="flex items-center gap-4">
+                                                <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xl flex-shrink-0">
+                                                    {member.name.charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-gray-800">{member.name}</h4>
+                                                    <p className="text-xs text-indigo-600 font-medium">{member.role}</p>
+                                                    <p className="text-xs text-gray-500 mt-0.5"><i className="fas fa-briefcase mr-1"></i> {member.experience} Exp.</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            const BookingScreen = () => {
+                const salon = getSalon(selectedSalonId);
+                const service = getService(bookingData.serviceId);
+                const salonStaff = staff.filter(s => s.salonId === salon.id);
+                
+                const [selectedStaff, setSelectedStaff] = useState("");
+                const [selectedDate, setSelectedDate] = useState("");
+                const [selectedTime, setSelectedTime] = useState("");
+                const[paymentMode, setPaymentMode] = useState("UPI");
+
+                const today = new Date().toISOString().split('T')[0];
+
+                const availableTimes = useMemo(() => {
+                    if (!selectedStaff || !selectedDate) return TIME_SLOTS;
+                    const bookedTimes = bookings
+                        .filter(b => b.staffId === parseInt(selectedStaff) && b.date === selectedDate && b.status !== 'Cancelled')
+                        .map(b => b.time);
+                    return TIME_SLOTS.filter(t => !bookedTimes.includes(t));
+                }, [selectedStaff, selectedDate, bookings]);
+
+                const handleConfirm = () => {
+                    if (!selectedStaff || !selectedDate || !selectedTime) return;
+                    const newBooking = {
+                        id: Date.now(),
+                        salonId: salon.id,
+                        serviceId: service.id,
+                        staffId: parseInt(selectedStaff),
+                        customerId: user.id,
+                        date: selectedDate,
+                        time: selectedTime,
+                        status: "Pending", // Sent as pending, triggers notification for admin
+                        paymentMode: paymentMode,
+                        amount: service.price,
+                        isRead: false
+                    };
+                    setBookings([...bookings, newBooking]);
+                    setView('booking-success');
+                };
+
+                return (
+                    <div className="max-w-2xl mx-auto px-4 py-12 fade-in">
+                        <button onClick={() => setView('salon')} className="text-indigo-600 mb-6 flex items-center gap-2 hover:underline">
+                            <i className="fas fa-arrow-left"></i> Back to Menu
+                        </button>
+                        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                            <div className="bg-gray-50 p-6 border-b">
+                                <h2 className="text-2xl font-bold text-gray-800">Complete Your Booking</h2>
+                            </div>
+                            
+                            <div className="p-6">
+                                <div className="flex justify-between items-center bg-indigo-50 p-4 rounded-xl border border-indigo-100 mb-8">
+                                    <div>
+                                        <p className="text-sm text-indigo-800 font-medium mb-1">Selected Service</p>
+                                        <p className="text-lg font-bold text-gray-900">{service.name}</p>
+                                        <p className="text-sm text-gray-600">{salon.name}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-2xl font-bold text-indigo-600">₹{service.price}</p>
+                                        <p className="text-sm text-gray-500">{service.duration} mins</p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 mb-2">Choose Professional</label>
+                                            <select value={selectedStaff} onChange={e => {setSelectedStaff(e.target.value); setSelectedTime("");}} className="w-full border-gray-300 border bg-gray-50 rounded-lg p-3 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                                                <option value="">-- Any Available Staff --</option>
+                                                {salonStaff.map(s => <option key={s.id} value={s.id}>{s.name} ({s.role})</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 mb-2">Select Date</label>
+                                            <input type="date" min={today} value={selectedDate} onChange={e => {setSelectedDate(e.target.value); setSelectedTime("");}} className="w-full border-gray-300 border bg-gray-50 rounded-lg p-3 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-2">Select Time Slot</label>
+                                        <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
+                                            {availableTimes.length === 0 ? (
+                                                <p className="text-sm text-red-500 col-span-full">Please select staff and date to see slots.</p>
+                                            ) : (
+                                                availableTimes.map(time => (
+                                                    <button key={time} onClick={() => setSelectedTime(time)} className={`py-2 rounded-lg text-sm font-medium border transition ${selectedTime === time ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:border-indigo-500'}`}>
+                                                        {time}
+                                                    </button>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="border-t pt-6">
+                                        <label className="block text-sm font-bold text-gray-700 mb-3">Payment Method</label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {['UPI', 'GPay', 'PhonePe', 'Offline (Cash)'].map(mode => (
+                                                <div key={mode} onClick={() => setPaymentMode(mode)} className={`cursor-pointer border p-3 rounded-lg flex items-center gap-3 transition ${paymentMode === mode ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                                                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${paymentMode === mode ? 'border-indigo-600' : 'border-gray-400'}`}>
+                                                        {paymentMode === mode && <div className="w-2 h-2 bg-indigo-600 rounded-full"></div>}
+                                                    </div>
+                                                    <span className="font-medium text-gray-800 text-sm">{mode}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <button onClick={handleConfirm} disabled={!selectedStaff || !selectedDate || !selectedTime} className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition mt-4">
+                                        Confirm & Pay ₹{service.price}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            const BookingSuccess = () => (
+                <div className="max-w-md mx-auto px-4 py-20 text-center fade-in">
+                    <div className="w-24 h-24 bg-green-100 text-green-500 rounded-full flex items-center justify-center text-5xl mx-auto mb-6 shadow-inner">
+                        <i className="fas fa-check"></i>
+                    </div>
+                    <h2 className="text-3xl font-bold text-gray-800 mb-2">Booking Requested!</h2>
+                    <p className="text-gray-600 mb-8">Your appointment is sent to the salon for approval. You will be notified once confirmed.</p>
+                    <button onClick={() => setView('my-bookings')} className="bg-indigo-600 text-white font-medium px-8 py-3 rounded-xl hover:bg-indigo-700 transition">
+                        Track Bookings
+                    </button>
+                </div>
+            );
+
+            const CustomerBookings = () => {
+                const myBookings = bookings.filter(b => b.customerId === user.id);
+
+                return (
+                    <div className="max-w-5xl mx-auto px-4 py-8 fade-in">
+                        <h1 className="text-3xl font-bold text-gray-900 mb-6">My Appointments</h1>
+                        {myBookings.length === 0 ? (
+                            <div className="text-center py-16 bg-white rounded-xl shadow-sm border border-gray-100">
+                                <i className="far fa-calendar-times text-4xl text-gray-300 mb-4"></i>
+                                <p className="text-gray-500 text-lg">You have no upcoming bookings.</p>
+                                <button onClick={() => setView('home')} className="mt-4 text-indigo-600 font-bold hover:underline">Find a Salon</button>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {myBookings.slice().reverse().map(b => {
+                                    const salon = getSalon(b.salonId);
+                                    const service = getService(b.serviceId);
+                                    const staffMem = getStaffMember(b.staffId);
+                                    
+                                    return (
+                                        <div key={b.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                            <div>
+                                                <div className="flex items-center gap-3 mb-2">
+                                                    <h3 className="text-xl font-bold text-gray-800">{service.name}</h3>
+                                                    <span className={`px-3 py-1 text-xs font-bold rounded-full ${
+                                                        b.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
+                                                        b.status === 'Confirmed' ? 'bg-blue-100 text-blue-700' :
+                                                        b.status === 'Completed' ? 'bg-green-100 text-green-700' :
+                                                        'bg-red-100 text-red-700'
+                                                    }`}>{b.status}</span>
+                                                </div>
+                                                <p className="text-gray-600 text-sm mb-1"><i className="fas fa-store w-5 text-indigo-400"></i> {salon.name} - <a href={`https://maps.google.com/?q=${salon.location}`} target="_blank" className="text-indigo-600 hover:underline text-xs">Map</a></p>
+                                                <p className="text-gray-600 text-sm mb-1"><i className="fas fa-calendar-alt w-5 text-indigo-400"></i> {b.date} at {b.time}</p>
+                                                <p className="text-gray-600 text-sm mb-1"><i className="fas fa-user w-5 text-indigo-400"></i> Expert: {staffMem.name}</p>
+                                                <p className="text-gray-600 text-sm"><i className="fas fa-wallet w-5 text-indigo-400"></i> ₹{b.amount} via {b.paymentMode}</p>
+                                            </div>
+                                            {(b.status === 'Pending' || b.status === 'Confirmed') && (
+                                                <button onClick={() => handleUpdateBooking(b.id, 'Cancelled')} className="border border-red-500 text-red-500 px-4 py-2 rounded-lg hover:bg-red-50 transition text-sm font-medium">
+                                                    Cancel
+                                                </button>
+                                            )}
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            const AdminDashboard = () => {
+                const salon = getSalon(user.salonId);
+                const [tab, setTab] = useState('bookings');
+                
+                // Forms
+                const[editingServiceId, setEditingServiceId] = useState(null);
+                const[serviceForm, setServiceForm] = useState({ name: '', price: '', duration: '' });
+                const[editingStaffId, setEditingStaffId] = useState(null);
+                const [staffForm, setStaffForm] = useState({ name: '', role: '', experience: '' });
+                const [offerForm, setOfferForm] = useState({ title: '', code: '' });
+
+                const salonBookings = bookings.filter(b => b.salonId === salon.id).slice().reverse();
+                const salonServices = services.filter(s => s.salonId === salon.id);
+                const salonStaff = staff.filter(s => s.salonId === salon.id);
+                const salonOffers = offers.filter(o => o.salonId === salon.id);
+                const currentWallet = salonWallets[salon.id] || 0;
+
+                const saveService = () => {
+                    if(!serviceForm.name || !serviceForm.price || !serviceForm.duration) return;
+                    if(editingServiceId) setServices(services.map(s => s.id === editingServiceId ? { ...s, ...serviceForm } : s));
+                    else setServices([...services, { id: Date.now(), salonId: salon.id, ...serviceForm }]);
+                    setServiceForm({ name: '', price: '', duration: '' });
+                    setEditingServiceId(null);
+                };
+
+                const saveStaff = () => {
+                    if(!staffForm.name || !staffForm.role || !staffForm.experience) return;
+                    if(editingStaffId) setStaff(staff.map(s => s.id === editingStaffId ? { ...s, ...staffForm } : s));
+                    else setStaff([...staff, { id: Date.now(), salonId: salon.id, ...staffForm }]);
+                    setStaffForm({ name: '', role: '', experience: '' });
+                    setEditingStaffId(null);
+                };
+
+                const addOffer = () => {
+                    if(!offerForm.title || !offerForm.code) return;
+                    setOffers([...offers, { id: Date.now(), salonId: salon.id, ...offerForm }]);
+                    setOfferForm({ title: '', code: '' });
+                }
+
+                return (
+                    <div className="max-w-7xl mx-auto px-4 py-8 fade-in flex flex-col md:flex-row gap-8">
+                        {/* Sidebar Menu */}
+                        <div className="w-full md:w-64 flex-shrink-0">
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                                <h2 className="font-bold text-gray-800 mb-1 px-2">{salon.name}</h2>
+                                <p className="text-xs text-gray-500 mb-6 px-2">Partner Dashboard</p>
+                                <nav className="space-y-2">
+                                    {['bookings', 'services', 'staff', 'offers', 'wallet'].map(t => (
+                                        <button key={t} onClick={() => setTab(t)} className={`w-full text-left px-4 py-3 rounded-xl capitalize font-medium transition ${tab === t ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}>
+                                            <i className={`fas fa-${t==='bookings'?'calendar-check':t==='services'?'list-ul':t==='staff'?'users':t==='offers'?'tags':'wallet'} w-6 text-center`}></i> {t}
+                                        </button>
+                                    ))}
+                                </nav>
+                            </div>
+                        </div>
+
+                        {/* Content Area */}
+                        <div className="flex-1">
+                            {tab === 'bookings' && (
+                                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                    <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                                        <h2 className="text-xl font-bold text-gray-800">Booking Requests</h2>
+                                        <span className="text-sm text-gray-500"><i className="fas fa-bell text-yellow-500"></i> Live updates enabled</span>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-gray-50 text-gray-500 text-sm border-b">
+                                                    <th className="p-4 font-bold">Service Info</th>
+                                                    <th className="p-4 font-bold">Time & Date</th>
+                                                    <th className="p-4 font-bold">Payment</th>
+                                                    <th className="p-4 font-bold">Status</th>
+                                                    <th className="p-4 font-bold text-right">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {salonBookings.length === 0 ? (
+                                                    <tr><td colSpan="5" className="p-8 text-center text-gray-500">No bookings found.</td></tr>
+                                                ) : salonBookings.map(b => (
+                                                    <tr key={b.id} className={`border-b last:border-0 hover:bg-gray-50 ${b.status === 'Pending' && !b.isRead ? 'bg-indigo-50/50' : ''}`}>
+                                                        <td className="p-4">
+                                                            <div className="font-bold text-gray-800">{getService(b.serviceId).name}</div>
+                                                            <div className="text-xs text-gray-500">Assignee: {getStaffMember(b.staffId).name}</div>
+                                                        </td>
+                                                        <td className="p-4 text-gray-600 text-sm"><span className="font-medium text-gray-900">{b.date}</span><br/>{b.time}</td>
+                                                        <td className="p-4 text-sm">₹{b.amount}<br/><span className="text-xs text-gray-500">{b.paymentMode}</span></td>
+                                                        <td className="p-4">
+                                                            <span className={`px-2 py-1 text-xs font-bold rounded ${
+                                                                b.status === 'Pending' ? 'bg-yellow-100 text-yellow-700 animate-pulse' :
+                                                                b.status === 'Confirmed' ? 'bg-blue-100 text-blue-700' :
+                                                                b.status === 'Completed' ? 'bg-green-100 text-green-700' :
+                                                                'bg-red-100 text-red-700'
+                                                            }`}>{b.status}</span>
+                                                        </td>
+                                                        <td className="p-4 text-right space-x-2">
+                                                            {b.status === 'Pending' && (
+                                                                <>
+                                                                    <button onClick={() => handleUpdateBooking(b.id, 'Confirmed')} className="bg-blue-600 text-white px-3 py-1 rounded shadow text-sm hover:bg-blue-700">Approve</button>
+                                                                    <button onClick={() => handleUpdateBooking(b.id, 'Cancelled')} className="bg-red-100 text-red-600 px-3 py-1 rounded text-sm hover:bg-red-200">Reject</button>
+                                                                </>
+                                                            )}
+                                                            {b.status === 'Confirmed' && (
+                                                                <button onClick={() => handleUpdateBooking(b.id, 'Completed')} className="bg-green-600 text-white px-3 py-1 rounded shadow text-sm hover:bg-green-700">Mark Completed</button>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {tab === 'services' && (
+                                <div className="space-y-6">
+                                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                                        <h2 className="text-xl font-bold text-gray-800 mb-4">{editingServiceId ? 'Edit Service' : 'Add New Service to Menu'}</h2>
+                                        <div className="flex flex-col md:flex-row gap-4">
+                                            <input type="text" placeholder="Service Name (e.g. Hair Spa)" value={serviceForm.name} onChange={e=>setServiceForm({...serviceForm, name: e.target.value})} className="flex-1 border p-3 rounded-xl focus:border-indigo-500 outline-none bg-gray-50" />
+                                            <input type="number" placeholder="Price (₹)" value={serviceForm.price} onChange={e=>setServiceForm({...serviceForm, price: e.target.value})} className="w-full md:w-32 border p-3 rounded-xl focus:border-indigo-500 outline-none bg-gray-50" />
+                                            <input type="number" placeholder="Time (mins)" value={serviceForm.duration} onChange={e=>setServiceForm({...serviceForm, duration: e.target.value})} className="w-full md:w-32 border p-3 rounded-xl focus:border-indigo-500 outline-none bg-gray-50" />
+                                            <button onClick={saveService} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-md">Save</button>
+                                            {editingServiceId && <button onClick={() => {setEditingServiceId(null); setServiceForm({name:'', price:'', duration:''})}} className="text-gray-500 px-4">Cancel</button>}
+                                        </div>
+                                    </div>
+                                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-2">
+                                        {salonServices.map(service => (
+                                            <div key={service.id} className="flex justify-between items-center p-4 border-b last:border-0 hover:bg-gray-50 rounded-xl">
+                                                <div>
+                                                    <h3 className="font-bold text-gray-800">{service.name}</h3>
+                                                    <p className="text-sm text-gray-500 font-medium">₹{service.price} • {service.duration} mins</p>
+                                                </div>
+                                                <div className="space-x-3">
+                                                    <button onClick={() => { setEditingServiceId(service.id); setServiceForm({name: service.name, price: service.price, duration: service.duration}); }} className="text-indigo-600 hover:underline text-sm font-bold"><i className="fas fa-edit"></i> Edit</button>
+                                                    <button onClick={() => setServices(services.filter(s => s.id !== service.id))} className="text-red-500 hover:underline text-sm font-bold"><i className="fas fa-trash"></i> Delete</button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {tab === 'staff' && (
+                                <div className="space-y-6">
+                                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                                        <h2 className="text-xl font-bold text-gray-800 mb-4">{editingStaffId ? 'Edit Professional' : 'Add Professional'}</h2>
+                                        <div className="flex flex-col md:flex-row gap-4">
+                                            <input type="text" placeholder="Full Name" value={staffForm.name} onChange={e=>setStaffForm({...staffForm, name: e.target.value})} className="flex-1 border p-3 rounded-xl focus:border-indigo-500 outline-none bg-gray-50" />
+                                            <input type="text" placeholder="Role (e.g. Barber)" value={staffForm.role} onChange={e=>setStaffForm({...staffForm, role: e.target.value})} className="flex-1 border p-3 rounded-xl focus:border-indigo-500 outline-none bg-gray-50" />
+                                            <input type="text" placeholder="Exp (e.g. 5 Years)" value={staffForm.experience} onChange={e=>setStaffForm({...staffForm, experience: e.target.value})} className="w-full md:w-40 border p-3 rounded-xl focus:border-indigo-500 outline-none bg-gray-50" />
+                                            <button onClick={saveStaff} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-md">Save</button>
+                                            {editingStaffId && <button onClick={() => {setEditingStaffId(null); setStaffForm({name:'', role:'', experience:''})}} className="text-gray-500 px-4">Cancel</button>}
+                                        </div>
+                                    </div>
+                                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-2">
+                                        {salonStaff.map(member => (
+                                            <div key={member.id} className="flex justify-between items-center p-4 border-b last:border-0 hover:bg-gray-50 rounded-xl">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold">{member.name.charAt(0)}</div>
+                                                    <div>
+                                                        <h3 className="font-bold text-gray-800">{member.name}</h3>
+                                                        <p className="text-sm text-gray-500">{member.role} • {member.experience}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="space-x-3">
+                                                    <button onClick={() => { setEditingStaffId(member.id); setStaffForm({name: member.name, role: member.role, experience: member.experience}); }} className="text-indigo-600 hover:underline text-sm font-bold">Edit</button>
+                                                    <button onClick={() => setStaff(staff.filter(s => s.id !== member.id))} className="text-red-500 hover:underline text-sm font-bold">Delete</button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {tab === 'offers' && (
+                                <div className="space-y-6">
+                                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                                        <h2 className="text-xl font-bold text-gray-800 mb-4">Create Discount Offer</h2>
+                                        <div className="flex flex-col md:flex-row gap-4">
+                                            <input type="text" placeholder="Offer Details (e.g. 10% off on Haircut)" value={offerForm.title} onChange={e=>setOfferForm({...offerForm, title: e.target.value})} className="flex-1 border p-3 rounded-xl focus:border-indigo-500 outline-none bg-gray-50" />
+                                            <input type="text" placeholder="Promo Code (e.g. SAVE10)" value={offerForm.code} onChange={e=>setOfferForm({...offerForm, code: e.target.value})} className="w-full md:w-48 border p-3 rounded-xl focus:border-indigo-500 outline-none bg-gray-50 uppercase" />
+                                            <button onClick={addOffer} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-md">Add</button>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {salonOffers.map(offer => (
+                                            <div key={offer.id} className="bg-yellow-50 border border-yellow-200 p-4 rounded-xl relative">
+                                                <button onClick={() => setOffers(offers.filter(o => o.id !== offer.id))} className="absolute top-3 right-3 text-red-400 hover:text-red-600"><i className="fas fa-times"></i></button>
+                                                <p className="font-bold text-gray-800 mb-2">{offer.title}</p>
+                                                <span className="bg-white border border-yellow-300 text-yellow-800 text-xs px-2 py-1 rounded font-mono font-bold">Code: {offer.code}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {tab === 'wallet' && (
+                                <div className="space-y-6">
+                                    <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl shadow-lg p-8 text-white">
+                                        <h2 className="text-lg font-medium opacity-90 mb-1">Available Refund Balance</h2>
+                                        <div className="text-4xl font-bold mb-4">₹{currentWallet}</div>
+                                        <p className="text-sm opacity-80"><i className="fas fa-info-circle"></i> This amount is after {salon.commissionRate}% platform commission deduction.</p>
+                                    </div>
+                                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                                        <h3 className="font-bold text-gray-800 mb-4">Recent Completed Earnings</h3>
+                                        <ul className="space-y-3">
+                                            {salonBookings.filter(b=>b.status==='Completed').map(b => (
+                                                <li key={b.id} className="flex justify-between items-center text-sm border-b pb-2 last:border-0">
+                                                    <span className="text-gray-600">Order #{b.id} - {b.date}</span>
+                                                    <span className="font-bold text-green-600">+ ₹{b.amount - (b.amount * (salon.commissionRate / 100))}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            const SuperAdminDashboard = () => {
+                const[tab, setTab] = useState('salons');
+                const [adForm, setAdForm] = useState({ title: '', charge: '' });
+
+                const handleApprove = (id) => setSalons(salons.map(s => s.id === id ? { ...s, status: 'Approved' } : s));
+                const handleReject = (id) => setSalons(salons.filter(s => s.id !== id));
+                const handleSettleWallet = (id) => setSalonWallets(prev => ({ ...prev, [id]: 0 }));
+
+                const saveAd = () => {
+                    if(!adForm.title || !adForm.charge) return;
+                    setAds([{ id: Date.now(), ...adForm, active: true }]);
+                    setAdForm({ title: '', charge: '' });
+                };
+
+                const deleteAd = (id) => setAds(ads.filter(a => a.id !== id));
+
+                return (
+                    <div className="max-w-7xl mx-auto px-4 py-8 fade-in">
+                        <div className="flex flex-col md:flex-row items-center justify-between mb-8 bg-gray-900 text-white p-6 rounded-2xl shadow-lg">
+                            <div>
+                                <h1 className="text-2xl font-bold">Super Admin Portal</h1>
+                                <p className="text-gray-400 text-sm">Manage platforms, partners, and monetization.</p>
+                            </div>
+                            <div className="flex gap-2 mt-4 md:mt-0">
+                                <button onClick={()=>setTab('salons')} className={`px-4 py-2 rounded-lg font-medium transition ${tab==='salons'?'bg-indigo-600':'bg-gray-800 hover:bg-gray-700'}`}>Partners & Payouts</button>
+                                <button onClick={()=>setTab('ads')} className={`px-4 py-2 rounded-lg font-medium transition ${tab==='ads'?'bg-indigo-600':'bg-gray-800 hover:bg-gray-700'}`}>Ad Monetization</button>
+                            </div>
+                        </div>
+
+                        {tab === 'salons' && (
+                            <div className="space-y-8">
+                                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                                    <h2 className="text-xl font-bold text-gray-800 mb-4 border-b pb-2">Pending Salon Registrations</h2>
+                                    <div className="space-y-4">
+                                        {salons.filter(s => s.status === 'Pending').length === 0 ? <p className="text-gray-500 text-sm">No pending requests.</p> : null}
+                                        {salons.filter(s => s.status === 'Pending').map(salon => (
+                                            <div key={salon.id} className="flex justify-between items-center p-4 bg-gray-50 border rounded-xl">
+                                                <div>
+                                                    <h3 className="font-bold text-gray-900">{salon.name}</h3>
+                                                    <p className="text-sm text-gray-600">Owner: {salon.ownerName} | Loc: {salon.location}</p>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button onClick={() => handleApprove(salon.id)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow hover:bg-green-700">Approve</button>
+                                                    <button onClick={() => handleReject(salon.id)} className="bg-red-100 text-red-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-200">Reject</button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                                    <h2 className="text-xl font-bold text-gray-800 mb-4 border-b pb-2">Active Partners & Payout Management</h2>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left">
+                                            <thead>
+                                                <tr className="bg-gray-50 border-b">
+                                                    <th className="p-4 text-sm font-bold text-gray-600">Salon Details</th>
+                                                    <th className="p-4 text-sm font-bold text-gray-600">Commission Rate</th>
+                                                    <th className="p-4 text-sm font-bold text-gray-600">Wallet Due (Refund)</th>
+                                                    <th className="p-4 text-sm font-bold text-gray-600 text-right">Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {salons.filter(s => s.status === 'Approved').map(salon => (
+                                                    <tr key={salon.id} className="border-b hover:bg-gray-50">
+                                                        <td className="p-4">
+                                                            <div className="font-bold text-gray-800">{salon.name}</div>
+                                                            <div className="text-xs text-gray-500">{salon.ownerName}</div>
+                                                        </td>
+                                                        <td className="p-4 font-medium">{salon.commissionRate}%</td>
+                                                        <td className="p-4 font-bold text-indigo-600">₹{salonWallets[salon.id] || 0}</td>
+                                                        <td className="p-4 text-right">
+                                                            <button 
+                                                                onClick={() => handleSettleWallet(salon.id)} 
+                                                                disabled={!(salonWallets[salon.id] > 0)}
+                                                                className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow hover:bg-indigo-700 disabled:opacity-50"
+                                                            >
+                                                                Settle / Pay
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {tab === 'ads' && (
+                            <div className="space-y-6">
+                                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                                    <h2 className="text-xl font-bold text-gray-800 mb-2">Publish App Banner (Monetization)</h2>
+                                    <p className="text-sm text-gray-500 mb-6">Charge brands to show their offers on the main customer page.</p>
+                                    <div className="flex flex-col md:flex-row gap-4">
+                                        <input type="text" placeholder="Ad Text / Offer Details" value={adForm.title} onChange={e=>setAdForm({...adForm, title: e.target.value})} className="flex-1 border p-3 rounded-xl focus:border-indigo-500 outline-none bg-gray-50" />
+                                        <input type="number" placeholder="Charge Amount (₹)" value={adForm.charge} onChange={e=>setAdForm({...adForm, charge: e.target.value})} className="w-full md:w-48 border p-3 rounded-xl focus:border-indigo-500 outline-none bg-gray-50" />
+                                        <button onClick={saveAd} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-md">Publish Ad</button>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 gap-4">
+                                    {ads.map(ad => (
+                                        <div key={ad.id} className="ad-banner text-white p-6 rounded-2xl flex justify-between items-center shadow-md">
+                                            <div>
+                                                <div className="text-xs bg-black/20 px-2 py-1 rounded inline-block mb-2 font-medium">Active Banner (Charged: ₹{ad.charge})</div>
+                                                <h3 className="font-bold text-xl">{ad.title}</h3>
+                                            </div>
+                                            <button onClick={() => deleteAd(ad.id)} className="bg-white text-indigo-600 px-4 py-2 rounded-lg font-bold shadow hover:bg-gray-100">Remove Ad</button>
+                                        </div>
+                                    ))}
+                                    {ads.length === 0 && <p className="text-gray-500 text-center py-8">No active ads running.</p>}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            return (
+                <div className="min-h-screen flex flex-col">
+                    <Navbar />
+                    <SalonNotificationPopup />
+                    <main className="flex-1 relative">
+                        {view === 'home' && <CustomerHome />}
+                        {view === 'salon' && <SalonDetails />}
+                        {view === 'booking' && <BookingScreen />}
+                        {view === 'booking-success' && <BookingSuccess />}
+                        {view === 'my-bookings' && <CustomerBookings />}
+                        {view === 'admin' && <AdminDashboard />}
+                        {view === 'superadmin' && <SuperAdminDashboard />}
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
